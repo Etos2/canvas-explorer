@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-mctc-parser = { git = "https://github.com/Etos2/mctc-rs.git", rev = "074b94c417b553f0f43a869626f9155591f09b66" }
-mctc-canvas_base = { git = "https://github.com/Etos2/mctc-canvas_base-rs", rev = "787cd3fbfea1071f023af2929d01cad0a2afa614" }
+mctc-parser = { git = "https://github.com/Etos2/mctc-rs.git", rev = "5a4bfec29076c5102ae289c37c835c08c897f791" }
+mctc-canvas_base = { git = "https://github.com/Etos2/mctc-canvas_base-rs", rev = "0320aa2c534f7d388e2607d5e679162e3600383a" }
 anyhow = "1.0.95"
 chrono = "0.4.39"

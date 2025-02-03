@@ -1,29 +1,25 @@
 use std::fs::OpenOptions;
-use std::io::{stdin, BufReader, BufWriter};
+use std::io::{BufReader, BufWriter, stdin};
 
 use anyhow::{Result, anyhow, bail};
 use io::pxls::PxlsFile;
 use mctc_canvas_base::{CanvasBaseCodec, CanvasEvent, CanvasMeta, MetaId, PaletteChunk, Placement};
 use mctc_parser::Codec;
 use mctc_parser::data::{Header, Record};
-use mctc_parser::writer::{write_header, write_record};
+use mctc_parser::writer::{WriterBuilder, write_header, write_record};
 
 pub mod io;
 
 fn main() -> Result<()> {
-    let mut header = Header::default();
-    let id = header
-        .register_codec::<CanvasBaseCodec>()
-        .ok_or(anyhow!("failed to register codec"))?;
-    let mut codec = CanvasBaseCodec::new(id);
-
     let destination = std::env::var("HOME").unwrap().to_string() + "/pxls/out/c86.mctc";
     eprintln!("Opening file... {}", destination);
-    let mut wtr = BufWriter::new(OpenOptions::new()
-        .create(true)
-        .write(true)
-        .truncate(true)
-        .open(destination)?);
+    let mut wtr = BufWriter::new(
+        OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(destination)?,
+    );
 
     eprintln!("Reading stdin...");
     let input = stdin();
@@ -32,6 +28,12 @@ fn main() -> Result<()> {
         bail!("file is empty");
     }
     eprintln!("Read {} lines!", { file.lines().len() });
+
+    let mut codec = CanvasBaseCodec::new();
+    let mut writer_builder = WriterBuilder::default();
+    let mut handle_canvas_base = writer_builder
+        .register(&mut codec)
+        .ok_or(anyhow!("failed to register codec"))?;
 
     let time_start = file.lines().first().unwrap().time;
     let time_end = file.lines().last().unwrap().time;
@@ -54,12 +56,11 @@ fn main() -> Result<()> {
     // TODO: Better write api
     eprintln!("Writing...");
     let now = std::time::SystemTime::now();
-    write_header(&mut wtr, &header)?;
-
-    codec.write_record(&mut wtr, &CanvasEvent::CanvasMeta(meta))?;
-    codec.write_record(
+    let writer = writer_builder.begin(&mut wtr)?;
+    handle_canvas_base.write(&mut wtr, CanvasEvent::CanvasMeta(meta))?;
+    handle_canvas_base.write(
         &mut wtr,
-        &CanvasEvent::PaletteChunk(PaletteChunk {
+        CanvasEvent::PaletteChunk(PaletteChunk {
             offset: 0,
             colors: vec![
                 [0x00, 0x00, 0x00, 0x00], // Transparent
@@ -107,12 +108,12 @@ fn main() -> Result<()> {
             color_index,
         };
         let id = MetaId::Numerical(line.id.as_str().as_bytes().to_vec());
-        codec.write_record(&mut wtr, &CanvasEvent::Placement(place))?;
-        codec.write_record(&mut wtr, &CanvasEvent::MetaId(id))?;
+        handle_canvas_base.write(&mut wtr, CanvasEvent::Placement(place))?;
+        handle_canvas_base.write(&mut wtr, CanvasEvent::MetaId(id))?;
     }
 
     // eos
-    write_record(&mut wtr, &Record::new_eos())?;
+    writer.finish(&mut wtr)?;
     eprintln!("End of stream!");
     eprintln!("Write took {} ms", now.elapsed()?.as_millis());
     Ok(())
